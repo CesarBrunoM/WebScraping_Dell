@@ -32,7 +32,7 @@ def navigate_to_support_page(driver, service_tag):
     Navega até a página de suporte da Dell e realiza a pesquisa pela tag de serviço.
     """
     try:
-        #handle_modal_popup(driver)        
+        handle_modal_popup(driver)        
         
         WebDriverWait(driver, 10).until(
             EC.presence_of_element_located((By.ID, 'mh-search-input'))
