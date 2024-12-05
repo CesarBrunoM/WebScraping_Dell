@@ -32,7 +32,7 @@ def navigate_to_support_page(driver, service_tag):
     Navega até a página de suporte da Dell e realiza a pesquisa pela tag de serviço.
     """
     try:
-        handle_modal_popup(driver)        
+        #handle_modal_popup(driver)        
         
         WebDriverWait(driver, 10).until(
             EC.presence_of_element_located((By.ID, 'mh-search-input'))
@@ -119,7 +119,7 @@ def click_support_link(driver, tag):
 
 def extract_purchase_date(driver):
     """
-    Extrai a data de compra e data de expiração da página usando BeautifulSoup.
+    Extrai a data de compra e a data de expiração da página usando BeautifulSoup.
     """
     meses = {
         "janeiro": "January", "fevereiro": "February", "março": "March",
@@ -127,8 +127,9 @@ def extract_purchase_date(driver):
         "julho": "July", "agosto": "August", "setembro": "September",
         "outubro": "October", "novembro": "November", "dezembro": "December"
     }
-    
+
     try:
+        # Espera até que os elementos com IDs das datas estejam visíveis
         WebDriverWait(driver, 20).until(
             EC.visibility_of_element_located((By.ID, 'dsk-purchaseDt'))
         )
@@ -139,28 +140,35 @@ def extract_purchase_date(driver):
         html = driver.page_source
         soup = BeautifulSoup(html, 'html.parser')
         
+        # Busca os elementos com as datas no HTML
         purchase_date_element = soup.find(id='dsk-purchaseDt')
         expiration_date_element = soup.find(id='dsk-expirationDt')    
-        
+
         if purchase_date_element and expiration_date_element:
             purchase_date = purchase_date_element.text.strip().lower()
             expiration_date = expiration_date_element.text.strip().lower()
 
+            # Substitui os meses em português pelos equivalentes em inglês
             for mes_pt, mes_en in meses.items():
                 purchase_date = purchase_date.replace(mes_pt, mes_en)
                 expiration_date = expiration_date.replace(mes_pt, mes_en)
 
-            purchase_date = datetime.strptime(purchase_date, "%B %d, %Y").strftime("%d/%m/%Y")
-            expiration_date = datetime.strptime(expiration_date, "%B %d, %Y").strftime("%d/%m/%Y")
-            
-            logger.info("Datas de compra e expiração extraídas com sucesso.")
-            return purchase_date, expiration_date
+            try:
+                # Converte as datas para o formato desejado
+                purchase_date = datetime.strptime(purchase_date, "%B %d, %Y").strftime("%d/%m/%Y")
+                expiration_date = datetime.strptime(expiration_date, "%B %d, %Y").strftime("%d/%m/%Y")
+                return purchase_date, expiration_date
+            except ValueError as e:
+                logging.error(f"Erro ao formatar as datas: {e}")
+                return None, None
         else:
-            logger.error("Data de compra ou expiração não encontrada.")
-            return "Data não encontrada", "Data não encontrada"
+            logging.error("Não foi possível encontrar os elementos de data de compra ou expiração.")
+            return None, None
+
     except Exception as e:
-        logger.error(f"Erro ao extrair a data de compra: {e}")
-        raise RuntimeError(f"Erro ao extrair a data de compra: {e}")
+        logging.error(f"Erro ao extrair a data de compra ou expiração: {e}")
+        return None, None
+    
 
 def main():
     arquivo_base = 'Arquivos_excel\\Lista_ativos.xlsx'
@@ -178,11 +186,17 @@ def main():
             navigate_to_support_page(driver, tag)
             handle_survey_popup(driver)
             tipo_suporte = click_support_link(driver, tag)
-            purchase_date, expiration_date = extract_purchase_date(driver) 
+            purchase_date, expiration_date = extract_purchase_date(driver)
             
+            if purchase_date and expiration_date:
+                df.at[index, 'DATA_COMPRA'] = purchase_date
+                df.at[index, 'DATA_FIM_GARANTIA'] = expiration_date
+            else:
+                logging.warning(f"Datas não extraídas para a tag {tag}.")
+                df.at[index, 'DATA_COMPRA'] = "Data não encontrada"
+                df.at[index, 'DATA_FIM_GARANTIA'] = "Data não encontrada" 
+                            
             df.at[index, 'TIPO_GARANTIA'] = tipo_suporte
-            df.at[index, 'DATA_COMPRA'] = purchase_date
-            df.at[index, 'DATA_FIM_GARANTIA'] = expiration_date
             logger.info(f"Tag {tag} processada com sucesso.")
                 
         salvar_dataframe(df, destino_dataframe)
