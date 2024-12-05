@@ -7,10 +7,8 @@ from selenium.webdriver.support import expected_conditions as EC
 from selenium.common.exceptions import TimeoutException
 from bs4 import BeautifulSoup
 from datetime import datetime
-import locale
-from df_tags import ler_dataframe
+from df_tags import ler_dataframe, salvar_dataframe
 
-# locale.setlocale(locale.LC_TIME, "pt_BR.UTF-8")
 
 def setup_driver():
     """
@@ -63,14 +61,22 @@ def click_support_link(driver, tag):
         WebDriverWait(driver, 10).until(
             EC.element_to_be_clickable((By.LINK_TEXT, "Suporte básico"))
         ).click()
+        
+        tipo_garantia = "Suporte básico"
+        
     except TimeoutException as e:  # Se for uma exceção de timeout
         WebDriverWait(driver, 10).until(
             EC.element_to_be_clickable((By.LINK_TEXT, "ProSupport"))
         ).click()
+        
+        tipo_garantia = "ProSupport"
+        
     except Exception as e:  # Para qualquer outro tipo de exceção
         print(f"Erro inesperado ao clicar no link de suporte básico: {e}")
         navigate_to_support_page(driver, tag)
-        #raise RuntimeError(f"Erro ao clicar no link de suporte básico: {e}")
+        
+    return tipo_garantia
+
 
 def extract_purchase_date(driver):
     """
@@ -84,36 +90,47 @@ def extract_purchase_date(driver):
     }
     
     try:
-        # Espera até que o elemento com o ID da data de compra esteja visível
-        purchase_date_element = WebDriverWait(driver, 20).until(
+        # Espera até que os elementos com IDs das datas estejam visíveis
+        WebDriverWait(driver, 20).until(
             EC.visibility_of_element_located((By.ID, 'dsk-purchaseDt'))
+        )
+        WebDriverWait(driver, 20).until(
+            EC.visibility_of_element_located((By.ID, 'dsk-expirationDt'))
         )
         
         html = driver.page_source
         soup = BeautifulSoup(html, 'html.parser')
-        purchase_date_element = soup.find(id='dsk-purchaseDt')
         
-        if purchase_date_element:
-            purchase_date = purchase_date_element.text.strip()
-            
-            for mes_pt, mes_link in meses.items():
-                purchase_date = purchase_date.replace(mes_pt,mes_link)
-            
-            return datetime.strptime(purchase_date, "%B %d, %Y").strftime("%d/%m/%Y")
+        # Busca os elementos com as datas no HTML
+        purchase_date_element = soup.find(id='dsk-purchaseDt')
+        expiration_date_element = soup.find(id='dsk-expirationDt')    
+        
+        if purchase_date_element and expiration_date_element:
+            purchase_date = purchase_date_element.text.strip().lower()
+            expiration_date = expiration_date_element.text.strip().lower()
+
+            # Substitui os meses em português pelos equivalentes em inglês
+            for mes_pt, mes_en in meses.items():
+                purchase_date = purchase_date.replace(mes_pt, mes_en)
+                expiration_date = expiration_date.replace(mes_pt, mes_en)
+
+            # Converte as datas para o formato desejado
+            purchase_date = datetime.strptime(purchase_date, "%B %d, %Y").strftime("%d/%m/%Y")
+            expiration_date = datetime.strptime(expiration_date, "%B %d, %Y").strftime("%d/%m/%Y")
+
+            return purchase_date, expiration_date
         else:
             return "Data não encontrada"
     except Exception as e:
         raise RuntimeError(f"Erro ao extrair a data de compra: {e}")
 
 def main():
-    service_tag = '1035Q34'
-    local_arquivo = 'Arquivo_excel\\Lista_ativos.xlsx'
+    arquivo_base = 'Arquivos_excel\\Lista_ativos.xlsx'
+    destino_dataframe = 'Arquivos_excel\\'
     driver = setup_driver()
     driver.get('https://www.dell.com/support/home/pt-br')
     
-    df = ler_dataframe(local_arquivo)
-    
-    df['DATA_COMPRA'] = None
+    df = ler_dataframe(arquivo_base)    
 
     try:
         for index, row in df.iterrows():
@@ -121,14 +138,16 @@ def main():
             
             navigate_to_support_page(driver, tag)
             handle_survey_popup(driver)
-            click_support_link(driver, tag)
-            purchase_date = extract_purchase_date(driver)
+            tipo_suporte = click_support_link(driver, tag)
+            purchase_date,expiration_date  = extract_purchase_date(driver)            
             
-            #print(f'Data de compra: {purchase_date}')
-            print(df)
+            df.at[index, 'TIPO_GARANTIA'] = tipo_suporte
             df.at[index, 'DATA_COMPRA'] = purchase_date
-        #print(df)
+            df.at[index, 'DATA_FIM_GARANTIA'] = expiration_date
+            print(tag)
                 
+        salvar_dataframe(df,destino_dataframe)
+        
     except Exception as e:
         print(f"Ocorreu um erro: {e}")
     finally:

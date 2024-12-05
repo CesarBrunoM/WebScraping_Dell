@@ -178,5 +178,5 @@ pyrightconfig.json
 # Generated using ignr.py - github.com/Antrikshy/ignr.py
 
 # Ignorar a pasta de teste
-Arquivos_teste/
+Arquivos_teste
 Arquivos_excel

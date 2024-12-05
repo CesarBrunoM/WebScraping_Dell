@@ -1,7 +1,6 @@
 import pandas as pd
+import os
 
-
-import pandas as pd
 
 def ler_dataframe(caminho_excel):
     # Lê o arquivo Excel
@@ -9,17 +8,25 @@ def ler_dataframe(caminho_excel):
     
     # Cria o novo DataFrame de forma eficiente
     new_dataframe = pd.DataFrame({
-        "ID_ITEM": dataframe['ID_ITEM'],  # Remove espaços em branco
-        "TIPO": dataframe['TABLE'],  # Remove espaços e converte para maiúsculas
-        "TAG": dataframe['TAGSERVICO']  # Apenas copia a coluna
+        "ID_ITEM": dataframe['ID_ITEM'], 
+        "TIPO": dataframe['TABLE'], 
+        "TAG": dataframe['TAGSERVICO'] 
     })
     
     new_dataframe = new_dataframe[new_dataframe['TAG'].str.len() <= 7]
-        #f not len(tag_servico) > 7:
-        #    taglist.append(tag_servico)
-    
+
     return new_dataframe
 
+def salvar_dataframe(dataframe, pasta_destino):
+    nome_arquivo="Dados-garantia-dell.xlsx"
+    # Verifica se a pasta de destino existe; se não, cria
+    if not os.path.exists(pasta_destino):
+        os.makedirs(pasta_destino)
 
-def gravaarquivo(dataframe):
-    pass
+    # Define o caminho completo do arquivo
+    local_arquivo = os.path.join(pasta_destino, nome_arquivo)
+
+    # Salva o DataFrame no formato Excel
+    dataframe.to_excel(local_arquivo, index=False)
+
+    print(f"Arquivo salvo em: {local_arquivo}")
