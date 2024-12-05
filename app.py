@@ -55,26 +55,37 @@ def handle_survey_popup(driver):
 
 def click_support_link(driver, tag):
     """
-    Clica no link de suporte básico para acessar a página de detalhes da garantia.
+    Clica no link de suporte adequado (Suporte básico, ProSupport, Gerenciar serviços).
+    Caso não consiga clicar em nenhum, retorna None.
     """
-    try:
-        WebDriverWait(driver, 10).until(
-            EC.element_to_be_clickable((By.LINK_TEXT, "Suporte básico"))
-        ).click()
-        
-        tipo_garantia = "Suporte básico"
-        
-    except TimeoutException as e:  # Se for uma exceção de timeout
-        WebDriverWait(driver, 10).until(
-            EC.element_to_be_clickable((By.LINK_TEXT, "ProSupport"))
-        ).click()
-        
-        tipo_garantia = "ProSupport"
-        
-    except Exception as e:  # Para qualquer outro tipo de exceção
-        print(f"Erro inesperado ao clicar no link de suporte básico: {e}")
-        navigate_to_support_page(driver, tag)
-        
+    tipo_garantia = None
+    links = [
+        ("Suporte básico", "Suporte básico"),
+        ("ProSupport", "ProSupport"),
+        ("Gerenciar serviços", "ProSupport")  # O ProSupport foi repetido, caso não encontre o 'Gerenciar serviços'
+    ]
+    
+    for link_text, tipo in links:
+        try:
+            # Tenta esperar e clicar no link
+            WebDriverWait(driver, 10).until(
+                EC.element_to_be_clickable((By.LINK_TEXT, link_text))
+            ).click()
+            tipo_garantia = tipo  # Atualiza o tipo de garantia
+            break  # Sai do loop após encontrar o link e clicar
+        except TimeoutException:
+            # Se o link não for clicável dentro do tempo, tenta o próximo
+            continue
+        except Exception as e:
+            # Para qualquer outro erro, imprime e tenta o próximo
+            print(f"Erro ao tentar clicar no link '{link_text}': {e}")
+            continue
+    
+    # Se não conseguiu clicar em nenhum link, avisa que não encontrou nenhum válido
+    if tipo_garantia is None:
+        print(f"Não foi possível encontrar o link de suporte para a tag {tag}.")
+        return None
+    
     return tipo_garantia
 
 
@@ -139,8 +150,9 @@ def main():
             navigate_to_support_page(driver, tag)
             handle_survey_popup(driver)
             tipo_suporte = click_support_link(driver, tag)
-            purchase_date,expiration_date  = extract_purchase_date(driver)            
+            purchase_date,expiration_date  = extract_purchase_date(driver) 
             
+                                    
             df.at[index, 'TIPO_GARANTIA'] = tipo_suporte
             df.at[index, 'DATA_COMPRA'] = purchase_date
             df.at[index, 'DATA_FIM_GARANTIA'] = expiration_date
